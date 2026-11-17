@@ -7,7 +7,7 @@ from src.policy import CostConfig, assign_daily_decisions, assign_decisions, eva
 def test_review_capacity_prioritizes_highest_risk():
     scores = pd.Series([0.10, 0.40, 0.70, 0.80, 0.95])
     result = assign_decisions(scores, 0.30, 0.90, 2, "approve")
-    assert result.tolist() == ["APPROVE", "REVIEW", "REVIEW", "APPROVE", "DECLINE"]
+    assert result.tolist() == ["APPROVE", "APPROVE", "REVIEW", "REVIEW", "DECLINE"]
 
 
 def test_overflow_policy_is_explicit():
