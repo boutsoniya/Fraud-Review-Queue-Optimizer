@@ -124,10 +124,13 @@ def evaluate_policy(y_true: pd.Series, transaction_amount: pd.Series,
         * costs.fraud_loss_rate
         * (1 - costs.reviewer_fraud_catch_rate)
     )
-    review_false_declines = int(
-        (legitimate & reviewed).sum() * costs.reviewer_legitimate_false_decline_rate
+    # Expected value is fractional by design; rounding here would understate
+    # low-rate reviewer errors in small evaluation samples.
+    review_false_declines = (
+        float((legitimate & reviewed).sum())
+        * costs.reviewer_legitimate_false_decline_rate
     )
-    false_declines = int((legitimate & declined).sum()) + review_false_declines
+    false_declines = float((legitimate & declined).sum()) + review_false_declines
     review_count = int(reviewed.sum())
 
     fraud_loss = float(approved_fraud_loss + missed_review_fraud_loss)
@@ -146,4 +149,6 @@ def evaluate_policy(y_true: pd.Series, transaction_amount: pd.Series,
         "fraud_reviewed_count": int((fraud & reviewed).sum()),
         "fraud_declined_count": int((fraud & declined).sum()),
         "legitimate_declined_count": int((legitimate & declined).sum()),
+        "expected_reviewed_legitimate_false_declines": review_false_declines,
+        "expected_false_declines": false_declines,
     }
