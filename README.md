@@ -103,6 +103,22 @@ The script searches the documented threshold grid and ranking strategies using v
 
 Thresholds are model-score cut-offs, not calibrated probabilities. The result depends on the illustrative assumptions in `configs/costs.yaml`; do not present the estimated cost difference as actual merchant savings.
 
+## Interactive decision simulator
+
+Launch the local Streamlit interface:
+
+```bash
+streamlit run app.py
+```
+
+The app starts with synthetic demonstration data. It also accepts a CSV of model-scored transactions with:
+- `fraud_score` (or `probability` / `score`), from 0 to 1;
+- `TransactionAmt` (or `amount`);
+- either `TransactionDT` (elapsed seconds) or `relative_day`;
+- optional `isFraud` (0/1) for retrospective cost evaluation.
+
+The interface lets an operations user change thresholds, staffing capacity, queue ranking, overflow behavior, and cost assumptions. It displays decisions, daily workload, the review queue, and (when labels are supplied) estimated offline costs. It is a policy simulator, not a live payment integration or a production fraud-decision service. Do not upload personal or payment-card data.
+
 ## Run locally
 
 ```bash
