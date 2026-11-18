@@ -26,8 +26,11 @@ class CostConfig:
     def validate(self) -> None:
         values = vars(self)
         for name, value in values.items():
-            if isinstance(value, bool) or not np.isscalar(value) or not np.isfinite(value) or value < 0:
-                raise ValueError(f"{name} must be finite and non-negative.")
+            if (isinstance(value, bool)
+                    or not isinstance(value, (int, float, np.integer, np.floating))
+                    or not np.isfinite(value)
+                    or value < 0):
+                raise ValueError(f"{name} must be a finite, non-negative number.")
         for name in ("reviewer_fraud_catch_rate", "reviewer_legitimate_false_decline_rate",
                      "false_decline_margin_rate"):
             if getattr(self, name) > 1:
