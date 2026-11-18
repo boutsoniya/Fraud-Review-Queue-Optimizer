@@ -43,7 +43,7 @@ The cost model separates expected fraud principal loss, fixed false-decline fric
 - `data/processed/`: generated audit and model outputs (not committed)
 - `notebooks/01_data_audit.md`: audit checklist
 - `scripts/audit_ieee_cis.py`: runnable Week 1 audit
-- `scripts/train_baseline.py`: time-aware LightGBM baseline
+- `scripts/train_baseline.py`: time-aware LightGBM baseline with optional identity enrichment
 - `src/config.py`: YAML settings loader
 - `src/policy.py`: policy implementation and cost evaluation
 - `tests/`: unit tests
@@ -64,12 +64,15 @@ It derives `floor(TransactionDT / 86400)` relative buckets. These are elapsed-ti
 
 ## Baseline model
 
-The first reproducible model is a compact LightGBM classifier using 60 selected transaction features (card, email, transaction, C/D/M, and V1–V20 fields). It does **not** use the identity file yet. This keeps the first experiment small enough to reproduce before testing identity enrichment and a broader feature set.
+The first reproducible model is a compact LightGBM classifier using 60 selected transaction features (card, email, transaction, C/D/M, and V1–V20 fields). Pass `--identity data/raw/train_identity.csv` to run the matched experiment with 34 selected identity fields.
 
 Run after installing `requirements.txt` and placing the transaction CSV in `data/raw/`:
 
 ```bash
 python scripts/train_baseline.py
+
+# Optional identity-enriched comparison
+python scripts/train_baseline.py --identity data/raw/train_identity.csv
 ```
 
 The script:
@@ -83,7 +86,7 @@ Both output folders are git-ignored. Raw Kaggle data and trained artifacts shoul
 
 ### First baseline result
 
-See [reports/baseline_results.md](reports/baseline_results.md) for the measured chronological holdout results and interpretation. The result is an initial benchmark, not a tuned or production-ready model.
+See [reports/baseline_results.md](reports/baseline_results.md) for the measured chronological holdout results, matched identity comparison, and queue trade-offs. These are initial benchmarks, not tuned or production-ready results.
 
 ## Run locally
 
@@ -111,4 +114,4 @@ pytest -q
 
 ## Current status
 
-The data audit and first transaction-only LightGBM baseline are complete. The capacity-aware policy, YAML assumptions, runnable audit, model-training script, and tests are in place. Next: compare identity features and tune the actual approve/review/decline policy on validation data before evaluating once on the held-out test period.
+The data audit, transaction-only LightGBM baseline, and first identity-enriched comparison are complete. The capacity-aware policy, YAML assumptions, runnable audit, model-training script, and tests are in place. Next: tune the actual approve/review/decline policy on validation data before evaluating once on the held-out test period.
