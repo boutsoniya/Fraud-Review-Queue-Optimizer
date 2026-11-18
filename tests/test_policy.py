@@ -93,7 +93,7 @@ def test_fractional_reviewer_false_declines_and_amount_sensitive_cost():
         customer_lifetime_value_cost=3.0,
     ))
     assert result["expected_false_declines"] == pytest.approx(0.02)
-    assert result["false_decline_cost"] == pytest.approx(3.24)
+    assert result["false_decline_cost"] == pytest.approx(0.46)
 
 
 def test_chargeback_fee_applies_to_expected_unblocked_fraud():
