@@ -1,8 +1,8 @@
-"""Train a compact, time-aware IEEE-CIS LightGBM baseline.
+"""Train a time-aware IEEE-CIS LightGBM baseline.
 
-The first baseline deliberately uses a documented 60-feature transaction-only
-subset. Identity enrichment and broader feature selection are later experiments.
-Raw Kaggle data and generated model artifacts must stay out of Git.
+The compact transaction feature set is the default. Pass --identity to run the
+matched identity-enriched experiment. Raw data and generated model artifacts
+must stay out of Git.
 """
 from __future__ import annotations
 
@@ -26,6 +26,16 @@ CATEGORICAL_FEATURES = (
     ["ProductCD", "card4", "card6", "P_emaildomain", "R_emaildomain"]
     + [f"M{i}" for i in range(1, 6)]
 )
+IDENTITY_NUMERIC_FEATURES = (
+    [f"id_{i:02d}" for i in range(1, 12)]
+    + ["id_13", "id_14"]
+    + [f"id_{i:02d}" for i in range(17, 23)]
+    + ["id_24", "id_25", "id_26", "id_32"]
+)
+IDENTITY_CATEGORICAL_FEATURES = [
+    "id_12", "id_15", "id_16", "id_28", "id_29", "id_34",
+    "id_35", "id_36", "id_37", "id_38", "DeviceType",
+]
 
 
 def chronological_split_masks(
@@ -63,6 +73,30 @@ def chronological_split_masks(
     return train, validation, test, train_boundary, validation_boundary
 
 
+def attach_identity_features(
+    transactions: pd.DataFrame, identity: pd.DataFrame
+) -> tuple[pd.DataFrame, float]:
+    """Left-join identity rows without multiplying transaction records."""
+    if "TransactionID" not in transactions or "TransactionID" not in identity:
+        raise KeyError("Both dataframes must contain TransactionID.")
+    if not transactions["TransactionID"].is_unique:
+        raise ValueError("Transaction TransactionID is not unique.")
+    if not identity["TransactionID"].is_unique:
+        raise ValueError("Identity TransactionID is not unique.")
+    joined = transactions.merge(
+        identity,
+        on="TransactionID",
+        how="left",
+        validate="one_to_one",
+        indicator="_identity_match",
+        sort=False,
+    )
+    if len(joined) != len(transactions):
+        raise AssertionError("Identity join changed transaction row count.")
+    match_rate = float(joined["_identity_match"].eq("both").mean())
+    return joined.drop(columns="_identity_match"), match_rate
+
+
 def capacity_queue_metrics(
     y_true: pd.Series,
     probabilities: pd.Series,
@@ -70,10 +104,10 @@ def capacity_queue_metrics(
     relative_day: pd.Series,
     capacity_per_day: int,
 ) -> dict:
-    """Compare top-k/day risk-score and probability-times-amount review queues.
+    """Compare top-k/day score and probability-times-amount review queues.
 
     This is a queue-ranking experiment only; it does not apply approve/decline
-    thresholds or claim probability-times-amount is calibrated recoverable loss.
+    thresholds. Probability-times-amount is a heuristic, not calibrated loss.
     """
     if isinstance(capacity_per_day, bool) or not isinstance(capacity_per_day, int) or capacity_per_day < 0:
         raise ValueError("capacity_per_day must be a non-negative integer.")
@@ -118,9 +152,11 @@ def capacity_queue_metrics(
     return results
 
 
-def load_training_frame(path: Path) -> tuple[pd.DataFrame, list[str]]:
-    """Read only the compact first-pass feature set with memory-conscious dtypes."""
-    header = pd.read_csv(path, nrows=0).columns.tolist()
+def load_training_frame(
+    transactions_path: Path, identity_path: Path | None = None
+) -> tuple[pd.DataFrame, list[str], float | None]:
+    """Read a compact feature set with memory-conscious dtypes."""
+    header = pd.read_csv(transactions_path, nrows=0).columns.tolist()
     usecols = [column for column in CORE_FEATURES if column in header]
     required = {"TransactionID", "isFraud", "TransactionDT", "TransactionAmt"}
     missing = required.difference(usecols)
@@ -132,17 +168,46 @@ def load_training_frame(path: Path) -> tuple[pd.DataFrame, list[str]]:
         if column not in categorical and column not in {"TransactionID", "isFraud", "TransactionDT"}:
             dtypes[column] = "float32"
     dtypes.update({"TransactionID": "int32", "isFraud": "int8", "TransactionDT": "int32"})
-    frame = pd.read_csv(path, usecols=usecols, dtype=dtypes, low_memory=True)
-    return frame, categorical
+    frame = pd.read_csv(transactions_path, usecols=usecols, dtype=dtypes, low_memory=True)
+
+    identity_match_rate = None
+    if identity_path is not None:
+        identity_header = pd.read_csv(identity_path, nrows=0).columns.tolist()
+        identity_usecols = [
+            column for column in (
+                ["TransactionID"] + IDENTITY_NUMERIC_FEATURES + IDENTITY_CATEGORICAL_FEATURES
+            ) if column in identity_header
+        ]
+        if "TransactionID" not in identity_usecols:
+            raise ValueError("Identity dataset is missing TransactionID.")
+        identity_dtypes = {"TransactionID": "int32"}
+        identity_categories = [
+            column for column in IDENTITY_CATEGORICAL_FEATURES if column in identity_usecols
+        ]
+        for column in identity_categories:
+            identity_dtypes[column] = "category"
+        for column in identity_usecols:
+            if column not in identity_dtypes and column != "TransactionID":
+                identity_dtypes[column] = "float32"
+        identity = pd.read_csv(
+            identity_path, usecols=identity_usecols, dtype=identity_dtypes, low_memory=True
+        )
+        frame, identity_match_rate = attach_identity_features(frame, identity)
+        categorical.extend(identity_categories)
+    return frame, categorical, identity_match_rate
 
 
 def train(args: argparse.Namespace) -> dict:
-    # Keep optional ML dependencies out of module import so lightweight CI can test helpers.
+    # Optional ML dependencies stay out of module import so lightweight CI can test helpers.
     import joblib
     from lightgbm import LGBMClassifier, early_stopping, log_evaluation
-    from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
+    from sklearn.metrics import (
+        average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
+    )
 
-    frame, categorical = load_training_frame(args.transactions)
+    frame, categorical, identity_match_rate = load_training_frame(
+        args.transactions, args.identity
+    )
     y = frame["isFraud"].astype("int8")
     train_mask, validation_mask, test_mask, train_boundary, validation_boundary = (
         chronological_split_masks(frame["TransactionDT"])
@@ -195,8 +260,16 @@ def train(args: argparse.Namespace) -> dict:
     metrics = {
         "dataset": "IEEE-CIS Fraud Detection",
         "model": "LightGBM binary classifier",
-        "feature_scope": "60-feature transaction-only first-pass subset; identity file not yet used",
+        "feature_scope": (
+            "transaction features plus selected identity fields"
+            if args.identity else "60-feature transaction-only first-pass subset"
+        ),
         "feature_count": len(kept_features),
+        "identity_features_used": (
+            sum(column.startswith("id_") or column == "DeviceType" for column in kept_features)
+            if args.identity else 0
+        ),
+        "identity_join_match_rate": identity_match_rate,
         "categorical_features": categorical,
         "best_iteration": int(model.best_iteration_),
         "split_rows": {
@@ -220,14 +293,13 @@ def train(args: argparse.Namespace) -> dict:
         "relative_day_count_test": int(relative_day.loc[test_mask].nunique()),
         "review_capacity_per_relative_day": args.review_capacity,
     }
-    queue_results = capacity_queue_metrics(
+    metrics["capacity_queue_comparison"] = capacity_queue_metrics(
         y_test,
         probabilities,
         frame.loc[test_mask, "TransactionAmt"],
         relative_day.loc[test_mask],
         args.review_capacity,
     )
-    metrics["capacity_queue_comparison"] = queue_results
 
     args.model_out.parent.mkdir(parents=True, exist_ok=True)
     args.metrics_out.parent.mkdir(parents=True, exist_ok=True)
@@ -244,6 +316,8 @@ def train(args: argparse.Namespace) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train a time-aware IEEE-CIS LightGBM baseline.")
     parser.add_argument("--transactions", type=Path, default=Path("data/raw/train_transaction.csv"))
+    parser.add_argument("--identity", type=Path, default=None,
+                        help="Optional train_identity.csv for the identity-enriched experiment.")
     parser.add_argument("--model-out", type=Path, default=Path("models/fraud_lgbm_baseline.joblib"))
     parser.add_argument("--metrics-out", type=Path, default=Path("data/processed/model/baseline_metrics.json"))
     parser.add_argument("--rounds", type=int, default=220)
@@ -253,6 +327,8 @@ def main() -> None:
     args = parser.parse_args()
     if not args.transactions.exists():
         parser.error(f"Transaction CSV not found: {args.transactions}")
+    if args.identity is not None and not args.identity.exists():
+        parser.error(f"Identity CSV not found: {args.identity}")
     if args.rounds < 1 or args.early_stopping_rounds < 1 or args.threads < 1:
         parser.error("rounds, early-stopping-rounds, and threads must be positive.")
     train(args)
