@@ -1,13 +1,17 @@
 # Illustrative placeholders only; not measured IEEE-CIS or merchant values.
+# Replace these with merchant-approved assumptions and run sensitivity analysis.
 fraud_loss_rate: 1.0
 false_decline_cost: 5.0
+false_decline_margin_rate: 0.0
+customer_lifetime_value_cost: 0.0
+chargeback_fee: 0.0
 manual_review_cost: 1.0
 reviewer_fraud_catch_rate: 0.90
 reviewer_legitimate_false_decline_rate: 0.02
 
-# Explicit overflow behavior: approve or decline
+# Explicit overflow behavior: approve or decline. This is a scenario choice.
 overflow_action: approve
 
-# Daily capacity = reviewers * reviews per reviewer per day
+# Daily capacity = reviewers * reviews per reviewer per day.
 reviewers: 5
 reviews_per_reviewer_per_day: 20
