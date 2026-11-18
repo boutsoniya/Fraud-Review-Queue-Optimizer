@@ -1,7 +1,11 @@
 import pandas as pd
 import pytest
 
-from scripts.train_baseline import capacity_queue_metrics, chronological_split_masks
+from scripts.train_baseline import (
+    attach_identity_features,
+    capacity_queue_metrics,
+    chronological_split_masks,
+)
 
 
 def test_chronological_split_keeps_equal_timestamps_together():
@@ -31,4 +35,21 @@ def test_capacity_queue_metrics_compares_score_and_amount_heuristic():
     )
     assert result["score"]["fraud_found"] == 1
     assert result["expected_loss_heuristic"]["fraud_found"] == 0
+    assert result["score"]["fraud_amount_recall"] == pytest.approx(10 / 110)
     assert result["score"]["reviewed_count"] == 1
+
+
+def test_identity_join_preserves_transaction_rows_and_reports_coverage():
+    transactions = pd.DataFrame({"TransactionID": [1, 2, 3], "isFraud": [0, 1, 0]})
+    identity = pd.DataFrame({"TransactionID": [1, 3], "id_01": [0.1, 0.2]})
+    joined, match_rate = attach_identity_features(transactions, identity)
+    assert len(joined) == len(transactions)
+    assert match_rate == pytest.approx(2 / 3)
+    assert joined["id_01"].isna().sum() == 1
+
+
+def test_identity_join_rejects_duplicate_ids():
+    transactions = pd.DataFrame({"TransactionID": [1, 2]})
+    identity = pd.DataFrame({"TransactionID": [1, 1], "id_01": [0.1, 0.2]})
+    with pytest.raises(ValueError, match="Identity TransactionID is not unique"):
+        attach_identity_features(transactions, identity)
