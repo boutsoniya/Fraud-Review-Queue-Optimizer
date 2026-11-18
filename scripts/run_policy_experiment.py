@@ -9,7 +9,6 @@ import argparse
 import json
 from pathlib import Path
 
-import joblib
 import numpy as np
 import pandas as pd
 
@@ -86,6 +85,7 @@ def select_policy(y: pd.Series, amount: pd.Series, scores: pd.Series,
 
 
 def run(args: argparse.Namespace) -> dict:
+    import joblib
     from sklearn.metrics import average_precision_score, roc_auc_score
 
     settings = load_policy_settings(args.config)
