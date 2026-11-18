@@ -88,6 +88,21 @@ Both output folders are git-ignored. Raw Kaggle data and trained artifacts shoul
 
 See [reports/baseline_results.md](reports/baseline_results.md) for the measured chronological holdout results, matched identity comparison, and queue trade-offs. These are initial benchmarks, not tuned or production-ready results.
 
+## Decision-policy experiment
+
+After training the identity-enriched model, run the validation-selected decision policy:
+
+```bash
+python scripts/run_policy_experiment.py \
+  --transactions data/raw/train_transaction.csv \
+  --identity data/raw/train_identity.csv \
+  --model models/fraud_lgbm_identity.joblib
+```
+
+The script searches the documented threshold grid and ranking strategies using validation data only, then evaluates the selected policy once on the chronological test partition. It writes `reports/policy_experiment.json`. The measured benchmark and its limitations are documented in [reports/policy_experiment.md](reports/policy_experiment.md).
+
+Thresholds are model-score cut-offs, not calibrated probabilities. The result depends on the illustrative assumptions in `configs/costs.yaml`; do not present the estimated cost difference as actual merchant savings.
+
 ## Run locally
 
 ```bash
