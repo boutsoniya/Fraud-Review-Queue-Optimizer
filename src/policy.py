@@ -118,14 +118,12 @@ def assign_daily_decisions(transactions: pd.DataFrame, probability_col: str,
                            ranking_strategy: RankingStrategy = "score",
                            amount_col: str | None = None) -> pd.Series:
     """Apply review capacity independently to each relative day bucket."""
-    missing = {probability_col, day_col}.difference(transactions.columns)
+    required = {probability_col, day_col}
     if ranking_strategy == "expected_loss":
         if amount_col is None:
             raise ValueError("amount_col is required for expected_loss ranking.")
-        missing.add(amount_col)
-    if missing.intersection(transactions.columns) == set():
-        pass
-    missing = {c for c in missing if c not in transactions.columns}
+        required.add(amount_col)
+    missing = required.difference(transactions.columns)
     if missing:
         raise KeyError(f"Missing required columns: {sorted(missing)}")
     if transactions[day_col].isna().any():
