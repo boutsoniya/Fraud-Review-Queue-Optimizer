@@ -43,6 +43,27 @@ The identity-enriched model improved PR-AUC by about 0.0090 absolute on this tes
 
 Both 160-round runs reached the configured round cap; tree count and hyperparameters still need tuning.
 
+
+## Probability calibration check
+
+The identity-enriched 160-round model was checked on validation and later-time test data before using its scores in cost-based decisions.
+
+| Metric | Validation | Test |
+|---|---:|---:|
+| Actual fraud rate | 3.434% | 3.480% |
+| Mean raw model score | 3.410% | 3.817% |
+| Brier score (raw) | 0.02388 | 0.02469 |
+| Log loss (raw) | 0.09982 | 0.10297 |
+
+The mean score tracks the validation fraud rate closely but is higher than the later test fraud rate. Two simple calibrators were fit on validation scores and then applied to the untouched test period:
+
+| Test metric | Raw scores | Isotonic calibration | Sigmoid calibration |
+|---|---:|---:|---:|
+| Brier score | **0.02469** | 0.02488 | 0.02541 |
+| Log loss | **0.10297** | 0.10404 | 0.11060 |
+
+Both calibration methods worsened the test metrics in this time-based experiment. We therefore retain raw model scores for ranking and must not describe them as reliably calibrated fraud probabilities. The next policy step should treat thresholds as score cutoffs, use validation-only selection, and test sensitivity to the explicitly assumed business costs.
+
 ## Capacity-only queue experiment
 
 The test period contains 31 relative day buckets. At 100 reviews per relative day, each strategy selects 3,100 transactions. This experiment ranks all test transactions and selects the top 100 each day; it does **not** yet apply approve/decline thresholds.
