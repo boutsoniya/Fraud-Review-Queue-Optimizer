@@ -80,7 +80,7 @@ The script:
 - uses validation AUC for early stopping;
 - reports PR-AUC, ROC-AUC, precision/recall/F1 at a 0.5 threshold;
 - compares top-100-per-relative-day queues ranked by score and by probability × amount;
-- writes the model to `models/fraud_lgbm_baseline.joblib` and metrics to `data/processed/model/baseline_metrics.json`.
+- writes separate artifacts: `fraud_lgbm_baseline.joblib` / `baseline_metrics.json` for transaction-only runs, and `fraud_lgbm_identity.joblib` / `identity_metrics.json` when `--identity` is supplied.
 
 Both output folders are git-ignored. Raw Kaggle data and trained artifacts should not be committed.
 
