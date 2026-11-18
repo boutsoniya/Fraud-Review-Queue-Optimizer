@@ -318,8 +318,8 @@ def main() -> None:
     parser.add_argument("--transactions", type=Path, default=Path("data/raw/train_transaction.csv"))
     parser.add_argument("--identity", type=Path, default=None,
                         help="Optional train_identity.csv for the identity-enriched experiment.")
-    parser.add_argument("--model-out", type=Path, default=Path("models/fraud_lgbm_baseline.joblib"))
-    parser.add_argument("--metrics-out", type=Path, default=Path("data/processed/model/baseline_metrics.json"))
+    parser.add_argument("--model-out", type=Path, default=None)
+    parser.add_argument("--metrics-out", type=Path, default=None)
     parser.add_argument("--rounds", type=int, default=220)
     parser.add_argument("--early-stopping-rounds", type=int, default=25)
     parser.add_argument("--threads", type=int, default=2)
@@ -331,6 +331,12 @@ def main() -> None:
         parser.error(f"Identity CSV not found: {args.identity}")
     if args.rounds < 1 or args.early_stopping_rounds < 1 or args.threads < 1:
         parser.error("rounds, early-stopping-rounds, and threads must be positive.")
+    if args.model_out is None:
+        suffix = "identity" if args.identity is not None else "baseline"
+        args.model_out = Path(f"models/fraud_lgbm_{suffix}.joblib")
+    if args.metrics_out is None:
+        suffix = "identity" if args.identity is not None else "baseline"
+        args.metrics_out = Path(f"data/processed/model/{suffix}_metrics.json")
     train(args)
 
 
