@@ -103,6 +103,16 @@ The script searches the documented threshold grid and ranking strategies using v
 
 Thresholds are model-score cut-offs, not calibrated probabilities. The result depends on the illustrative assumptions in `configs/costs.yaml`; do not present the estimated cost difference as actual merchant savings.
 
+## Model explainability
+
+Use SHAP to inspect the strongest model-score contributions for selected rows. This explains the model's scoring behavior, not causal reasons for fraud.
+
+```bash
+python scripts/explain_predictions.py --input data/processed/scored_features.csv --rows 10 20 30
+```
+
+The input CSV must contain the model's feature columns. SHAP is optional for normal dashboard usage and is computed on demand.
+
 ## Interactive decision simulator
 
 Launch the local Streamlit interface:
